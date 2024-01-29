@@ -1,66 +1,68 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
     <title>Stock Data Scatter Plot</title>
+    <link rel="stylesheet" type="text/css" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/moment@latest/moment.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@latest"></script>
 </head>
 <body>
+    <header>
+        <nav>
+            <ul>
+                <li><a href="stocks.html">Stocks</a></li>
+                <li><a href="publishers.html">Publisher Ratings</a></li>
+                <li><a href="getMarketDataAAPL.php">AAPL Scatter Plot</a></li>
+            </ul>
+        </nav>
+    </header>
+    <div id="myChartContainer">
+    <canvas id="myChart"></canvas>
+    </div>
 
-<form id="stockForm">
-    <select name="symbol" id="symbolSelect">
-        <option value="AAPL">Apple Inc (AAPL)</option>
-        <option value="CVS">CVS Health Corp (CVS)</option>
-        <option value="META">Meta Platforms Inc (META)</option>
-    </select>
-    <button type="submit">Load Data</button>
-</form>
 
-<canvas id="myScatterChart" width="800" height="400"></canvas>
+    <?php
+    $queryString = http_build_query([
+        'access_key' => 'e3365fb1e8249b58a90facbfc3eb3e9f',
+        'symbols' => 'AAPL',
+        'interval' => '1min',
+    ]);
 
-<script>
-// Placeholder for initializing the chart to avoid errors before data is loaded
-var myScatterChart = null;
+    $ch = curl_init(sprintf('%s?%s', 'https://api.marketstack.com/v1/intraday/2024-01-25', $queryString));
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-document.getElementById('stockForm').addEventListener('submit', function(e) {
-    e.preventDefault(); // Prevent traditional form submission
-
-    var symbol = document.getElementById('symbolSelect').value;
-    fetchDataAndUpdateChart(symbol);
-});
-
-function fetchDataAndUpdateChart(symbol) {
-    var url = 'path_to_your_php_script.php?symbol=' + symbol; // Adjust with the actual PHP script path
-
-    fetch(url)
-    .then(response => response.json())
-    .then(data => {
-        // Assuming 'data' is the processed stock data array for the selected symbol
-        updateChart(data);
-    })
-    .catch(error => console.error('Error fetching data:', error));
-}
-
-function updateChart(stockData) {
-    var scatterData = stockData.map(function(e) {
-        return {
-            x: moment(e.date).format('YYYY-MM-DD HH:mm:ss'),
-            y: e.high
-        };
-    });
-
-    if (myScatterChart !== null) {
-        myScatterChart.destroy(); // Destroy the previous chart instance if exists
+    $json = curl_exec($ch);
+    if ($json === false) {
+        echo "CURL Error: " . curl_error($ch);
+    } else {
+        $apiResult = json_decode($json, true);
+        if (isset($apiResult['data']) && is_array($apiResult['data'])) {
+            $scatterData = [];
+            foreach ($apiResult['data'] as $stockData) {
+                $scatterData[] = [
+                    'x' => $stockData['date'],
+                    'y' => $stockData['high'], 
+                ];            }
+        } else {
+            echo "Error: Data not found in API response.";
+        }
     }
+    curl_close($ch);
 
-    var ctx = document.getElementById('myScatterChart').getContext('2d');
-    myScatterChart = new Chart(ctx, {
-        type: 'scatter',
+    // Convert data to JSON for JavaScript
+    $jsonScatterData = json_encode($scatterData);
+    ?>
+
+    <script>
+    var scatterData = <?php echo $jsonScatterData; ?>;
+
+    var ctx = document.getElementById('myChart').getContext('2d');
+    var myChart = new Chart(ctx, {
+        type: 'line',
         data: {
             datasets: [{
-                label: 'Stock Price',
+                label: 'Stock Data',
                 data: scatterData,
                 backgroundColor: 'rgb(75, 192, 192)'
             }]
@@ -70,8 +72,8 @@ function updateChart(stockData) {
                 x: {
                     type: 'time',
                     time: {
-                        unit: 'minute',
-                        tooltipFormat: 'YYYY-MM-DD HH:mm:ss',
+                        parser: 'YYYY-MM-DDTHH:mm:ssZ',
+                        tooltipFormat: 'll HH:mm'
                     },
                     title: {
                         display: true,
@@ -88,11 +90,6 @@ function updateChart(stockData) {
             }
         }
     });
-}
-
-// Initially load AAPL data or your default choice
-fetchDataAndUpdateChart('AAPL');
-</script>
-
+    </script>
 </body>
 </html>
